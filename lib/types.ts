@@ -42,6 +42,7 @@ export type Offer = {
   card_label: string;
   amount: number;
   note: string;
+  meetup: string;
   ask_at_offer: number | null;
   market_at_offer: number | null;
   status: OfferStatus;
@@ -58,9 +59,14 @@ export type Sale = {
   price: number;
   cost: number | null;
   qty: number;
+  location: string | null;
+  tax_rate: number;
+  tax: number;
   sold_at: string;
 };
 
 export type Ev = { type: "visit" | "view"; anon_id: string; card_id: string | null; day: string };
 
-export type Site = { name: string; tagline: string; contact: string };
+export type Site = { name: string; tagline: string; contact: string; payments: string };
+
+export type Loc = { id: string; name: string; state: string; rate: number; active: boolean };

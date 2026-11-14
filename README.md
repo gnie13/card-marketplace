@@ -13,7 +13,7 @@ A storefront for trading cards (Pokemon first) where signed-in buyers send offer
 | `/` | Shop: search, set filter, sorting, asking price against market |
 | `/card/[id]` | Card detail, market panel and trend, offer form |
 | `/offers` | A buyer's offers: withdraw, accept or decline a counter |
-| `/admin` | Owner only: overview, offers, inventory, price trends, usage, store details |
+| `/admin` | Owner only: overview, offers, inventory, price trends, sales tax, usage, store details |
 | `/login` | Google sign-in |
 | `/guide`, `/terms`, `/privacy` | Condition guide and offer rules, draft legal pages |
 
@@ -51,6 +51,11 @@ Reload the site and the Admin link appears.
 
 ## Pricing details
 A card is refreshed only when it has both a TCGplayer set (group) ID and product ID. The product ID is the number in the card's TCGplayer URL. Set IDs are listed at `https://tcgcsv.com/tcgplayer/3/groups`. Cards without IDs keep whatever price you log by hand in **Admin > Price trends**. The same page has a **Refresh prices now** button.
+
+## Sales tax and pickup
+- Sales are local pickup only and every price includes sales tax.
+- `locations` holds the meetup towns and the combined tax rate for each. Edit them in **Admin > Store**. The starting rates came from third-party rate sites, so confirm each one in the MyTax Illinois Tax Rate Finder.
+- When a sale is recorded, the tax is split out as `price - price / (1 + rate)` and stored on the sale. **Admin > Sales tax** totals it by month and town for filing.
 
 ## Not built yet
 - Payments. Offers end in an agreed price, and payment happens off the site.

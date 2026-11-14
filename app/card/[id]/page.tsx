@@ -5,14 +5,16 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "@/lib/app";
 import { supabase } from "@/lib/supabase";
-import type { Card, Hist, Offer } from "@/lib/types";
+import type { Card, Hist, Loc, Offer } from "@/lib/types";
 import { deltaInfo, fmtDay, num, usd } from "@/lib/util";
 import { Art, Pill } from "@/components/ui";
 import { LineChart } from "@/components/charts";
 
 export default function CardPage() {
   const { id } = useParams<{ id: string }>();
-  const { user, ready, toast, track } = useApp();
+  const { user, ready, toast, track, site } = useApp();
+  const [locs, setLocs] = useState<Loc[]>([]);
+  const [meetup, setMeetup] = useState("");
   const [card, setCard] = useState<Card | null | undefined>(undefined);
   const [hist, setHist] = useState<Hist[]>([]);
   const [mine, setMine] = useState<Offer[]>([]);
@@ -33,6 +35,7 @@ export default function CardPage() {
       setCard(c);
       if (c?.ask != null) setAmount(String(c.ask));
     });
+    supabase.from("locations").select("*").eq("active", true).order("name").then(({ data }) => setLocs((data as Loc[]) ?? []));
     supabase.from("price_history").select("*").eq("card_id", id).order("day").then(({ data }) => setHist((data as Hist[]) ?? []));
   }, [id]);
 
@@ -67,6 +70,7 @@ export default function CardPage() {
       card_label: `${card.set_name} · ${card.number}`,
       amount: amt,
       note: note.trim().slice(0, 240),
+      meetup: meetup || locs[0]?.id || "",
       ask_at_offer: card.ask,
       market_at_offer: card.market,
     });
@@ -148,12 +152,20 @@ export default function CardPage() {
                 </label>
                 <label>
                   Note to seller (optional)
-                  <input type="text" id="of-note" maxLength={240} placeholder="Pickup, shipping, bundle with another card..." value={note} onChange={(e) => setNote(e.target.value)} />
+                  <input type="text" id="of-note" maxLength={240} placeholder="Best days or times, bundle with another card..." value={note} onChange={(e) => setNote(e.target.value)} />
                 </label>
+                {locs.length > 0 && (
+                  <label className="full">
+                    Where you would like to meet
+                    <select id="of-meet" value={meetup || locs[0].id} onChange={(e) => setMeetup(e.target.value)}>
+                      {locs.map((l) => <option key={l.id} value={l.id}>{l.name}, {l.state}</option>)}
+                    </select>
+                  </label>
+                )}
                 <div className="full acts">
                   <button className="btn solid" type="submit" disabled={busy}>Send offer</button>
                   <span className="note">
-                    The seller can accept, decline, or counter. Nothing is charged here. See the <Link href="/guide">offer rules</Link>.
+                    Prices include sales tax. Local pickup only, paid in person ({site.payments}). Nothing is charged here. See the <Link href="/guide">offer rules</Link>.
                   </span>
                 </div>
               </form>

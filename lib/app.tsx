@@ -19,6 +19,7 @@ const DEFAULT_SITE: Site = {
   name: "Card Marketplace",
   tagline: "Every card we have in hand, priced against the live market. See something you want? Send an offer.",
   contact: "",
+  payments: "Cash",
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -58,7 +59,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const reloadSite = useCallback(() => {
     if (!configured) return;
-    supabase.from("site").select("name,tagline,contact").eq("id", 1).maybeSingle().then(({ data }) => {
+    supabase.from("site").select("name,tagline,contact,payments").eq("id", 1).maybeSingle().then(({ data }) => {
       if (data) setSite(data as Site);
     });
   }, []);

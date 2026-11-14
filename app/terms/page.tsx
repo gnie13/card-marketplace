@@ -3,7 +3,7 @@ import Link from "next/link";
 export const metadata = { title: "Terms of use" };
 
 // DRAFT: a plain-language starting point. Have it reviewed before you rely on it,
-// and fill in the business name, state, shipping and return details.
+// and fill in the business name and confirm the pickup and return terms.
 export default function Terms() {
   return (
     <article className="legal">
@@ -22,8 +22,8 @@ export default function Terms() {
       <h2>Listings and prices</h2>
       <p>We describe each card&apos;s condition as accurately as we can. Market prices come from a third party and are shown for reference only. We may correct listing errors and decline any offer.</p>
 
-      <h2>Shipping and returns</h2>
-      <p>Shipping method, cost, and insurance are agreed with the buyer before payment. If a card arrives materially different from its listing, contact us within 7 days of delivery to arrange a return.</p>
+      <h2>Pickup, payment and returns</h2>
+      <p>All sales are completed in person in the Illinois Quad Cities area. We do not ship. Prices include sales tax. Payment is made at the handoff, after you have had the chance to inspect the card. Sales are final once the card has been inspected, paid for, and handed over.</p>
 
       <h2>Trademarks</h2>
       <p>Card and game names belong to their owners. This site is an independent reseller and is not affiliated with, sponsored by, or endorsed by any card publisher.</p>

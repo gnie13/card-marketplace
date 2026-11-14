@@ -93,7 +93,7 @@ export default function MyOffers() {
                         <button className="btn sm" onClick={() => act("offer_withdraw", { p_id: o.id }, "Offer withdrawn.")}>Withdraw</button>
                       )}
                       {(o.status === "accepted" || o.status === "counter_accepted") && (
-                        <span className="sub">Agreed at {usd(agreed(o))}. The seller will contact you to complete the sale.</span>
+                        <span className="sub">Agreed at {usd(agreed(o))}. The seller will email you to set up the meetup.</span>
                       )}
                     </div>
                   </td>

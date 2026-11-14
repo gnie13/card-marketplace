@@ -3,30 +3,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "@/lib/app";
 import { supabase } from "@/lib/supabase";
-import type { Card, Ev, Hist, Offer, Sale, Site } from "@/lib/types";
+import type { Card, Ev, Hist, Loc, Offer, Sale, Site } from "@/lib/types";
 import { OPEN, agreed, deltaInfo, dstr, fmtDay, lastDays, num, slug, usd } from "@/lib/util";
 import { Pill } from "@/components/ui";
 import { BarChart, LineChart, Spark } from "@/components/charts";
 
-type Data = { cards: Card[]; costs: Record<string, number>; hist: Hist[]; offers: Offer[]; sales: Sale[]; events: Ev[] };
+type Data = { cards: Card[]; costs: Record<string, number>; hist: Hist[]; offers: Offer[]; sales: Sale[]; events: Ev[]; locs: Loc[] };
 type Run = (work: () => PromiseLike<{ error: { message: string } | null }>, done: string) => Promise<boolean>;
-const TABS = [["overview", "Overview"], ["offers", "Offers"], ["inventory", "Inventory"], ["prices", "Price trends"], ["usage", "Usage"], ["store", "Store"]] as const;
+const TABS = [["overview", "Overview"], ["offers", "Offers"], ["inventory", "Inventory"], ["prices", "Price trends"], ["tax", "Sales tax"], ["usage", "Usage"], ["store", "Store"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 export default function Admin() {
   const { isAdmin, ready, toast } = useApp();
   const [tab, setTab] = useState<Tab>("overview");
   const [data, setData] = useState<Data | null>(null);
+  const [picked, setPicked] = useState("");
 
   const load = useCallback(async () => {
     const since = lastDays(30)[0];
-    const [cards, costs, hist, offers, sales, events] = await Promise.all([
+    const [cards, costs, hist, offers, sales, events, locs] = await Promise.all([
       supabase.from("cards").select("*"),
       supabase.from("card_costs").select("*"),
       supabase.from("price_history").select("*").order("day"),
       supabase.from("offers").select("*, profiles(name,email)").order("created_at", { ascending: false }),
       supabase.from("sales").select("*").order("sold_at"),
       supabase.from("events").select("type,anon_id,card_id,day").gte("day", since).limit(20000),
+      supabase.from("locations").select("*").order("name"),
     ]);
     setData({
       cards: (cards.data as Card[]) ?? [],
@@ -35,6 +37,7 @@ export default function Admin() {
       offers: (offers.data as Offer[]) ?? [],
       sales: (sales.data as Sale[]) ?? [],
       events: (events.data as Ev[]) ?? [],
+      locs: ((locs.data as Loc[]) ?? []).map((l) => ({ ...l, rate: Number(l.rate) })),
     });
   }, []);
 
@@ -60,6 +63,18 @@ export default function Admin() {
       </section>
     );
 
+  const active = data?.locs.filter((l) => l.active) ?? [];
+  const loc = active.find((l) => l.id === picked)?.id ?? active[0]?.id ?? null;
+  const locPicker = (
+    <label style={{ maxWidth: 320 }}>
+      Meetup town for sales you record
+      <select id="sale-loc" value={loc ?? ""} onChange={(e) => setPicked(e.target.value)}>
+        {active.length === 0 && <option value="">No towns set up yet</option>}
+        {active.map((l) => <option key={l.id} value={l.id}>{l.name}, {l.state} ({l.rate}% tax included)</option>)}
+      </select>
+    </label>
+  );
+
   return (
     <section className="section">
       <h1>Admin</h1>
@@ -73,15 +88,17 @@ export default function Admin() {
       ) : tab === "overview" ? (
         <Overview d={data} go={setTab} />
       ) : tab === "offers" ? (
-        <Offers d={data} run={run} />
+        <>{locPicker}<Offers d={data} run={run} loc={loc} /></>
       ) : tab === "inventory" ? (
-        <Inventory d={data} run={run} />
+        <>{locPicker}<Inventory d={data} run={run} loc={loc} /></>
       ) : tab === "prices" ? (
         <Prices d={data} run={run} reload={load} />
+      ) : tab === "tax" ? (
+        <Tax d={data} />
       ) : tab === "usage" ? (
         <Usage d={data} />
       ) : (
-        <Store />
+        <Store locs={data.locs} run={run} />
       )}
     </section>
   );
@@ -112,7 +129,8 @@ function AmountAction({ placeholder, label, onGo }: { placeholder: string; label
 function Overview({ d, go }: { d: Data; go: (t: Tab) => void }) {
   const rev = d.sales.reduce((a, s) => a + Number(s.price), 0);
   const withCost = d.sales.filter((s) => s.cost != null);
-  const profit = withCost.reduce((a, s) => a + Number(s.price) - Number(s.cost), 0);
+  const profit = withCost.reduce((a, s) => a + Number(s.price) - Number(s.tax ?? 0) - Number(s.cost), 0);
+  const tax = d.sales.reduce((a, s) => a + Number(s.tax ?? 0), 0);
   const units = d.sales.reduce((a, s) => a + (s.qty || 1), 0);
   const live = d.cards.filter((c) => c.qty > 0);
   const askVal = live.reduce((a, c) => a + Number(c.ask ?? 0) * c.qty, 0);
@@ -136,8 +154,8 @@ function Overview({ d, go }: { d: Data; go: (t: Tab) => void }) {
         </div>
       )}
       <div className="tiles">
-        <div className="stat"><span className="eyebrow">Earnings</span><b>{usd(rev)}</b><small>{units} card{units === 1 ? "" : "s"} sold</small></div>
-        <div className="stat"><span className="eyebrow">Profit</span><b>{withCost.length ? usd(profit) : "n/a"}</b><small>{withCost.length ? `on ${withCost.length} of ${d.sales.length} sales with a cost entered` : "Add what you paid per card to see profit"}</small></div>
+        <div className="stat"><span className="eyebrow">Earnings</span><b>{usd(rev)}</b><small>{units} card{units === 1 ? "" : "s"} sold, {usd(tax)} of it sales tax</small></div>
+        <div className="stat"><span className="eyebrow">Profit</span><b>{withCost.length ? usd(profit) : "n/a"}</b><small>{withCost.length ? `after tax, on ${withCost.length} of ${d.sales.length} sales with a cost entered` : "Add what you paid per card to see profit"}</small></div>
         <div className="stat"><span className="eyebrow">Open offers</span><b>{open.length}</b><small>{d.offers.length} received in total</small></div>
         <div className="stat"><span className="eyebrow">Stock at asking</span><b>{usd(askVal)}</b><small>{stock} cards, {usd(mktVal)} at market</small></div>
         <div className="stat"><span className="eyebrow">Visitors, 7 days</span><b>{visitors}</b><small>unique browsers</small></div>
@@ -172,7 +190,7 @@ function Overview({ d, go }: { d: Data; go: (t: Tab) => void }) {
   );
 }
 
-function Offers({ d, run }: { d: Data; run: Run }) {
+function Offers({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
   if (!d.offers.length) return <div className="empty">No offers yet. When a buyer sends one, you can accept, counter, or decline it here.</div>;
   const set = (o: Offer, patch: Partial<Offer>, done: string) =>
     run(() => supabase.from("offers").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", o.id), done);
@@ -187,9 +205,10 @@ function Offers({ d, run }: { d: Data; run: Run }) {
           {d.offers.map((o) => {
             const c = d.cards.find((x) => x.id === o.card_id);
             const price = agreed(o);
+            const meet = d.locs.find((l) => l.id === o.meetup);
             return (
               <tr key={o.id}>
-                <td><b>{o.card_name}</b><div className="sub">{o.card_label}{o.note ? ` · "${o.note}"` : ""}</div></td>
+                <td><b>{o.card_name}</b><div className="sub">{o.card_label}{meet ? ` · wants ${meet.name}` : ""}{o.note ? ` · "${o.note}"` : ""}</div></td>
                 <td><b>{o.profiles?.name || "Buyer"}</b>{o.profiles?.email && <div className="sub">{o.profiles.email}</div>}</td>
                 <td className="num">{usd(o.amount)}</td>
                 <td className="num">{pc(o.amount, c?.ask ?? o.ask_at_offer)}</td>
@@ -213,7 +232,7 @@ function Offers({ d, run }: { d: Data; run: Run }) {
                     )}
                     {(o.status === "accepted" || o.status === "counter_accepted") && (
                       <>
-                        <button className="btn sm solid" disabled={!c || c.qty < 1} onClick={() => run(() => supabase.rpc("record_sale", { p_card: o.card_id, p_price: price, p_offer: o.id }), `Sale recorded at ${usd(price)}.`)}>
+                        <button className="btn sm solid" disabled={!c || c.qty < 1} onClick={() => run(() => supabase.rpc("record_sale", { p_card: o.card_id, p_price: price, p_offer: o.id, p_location: loc }), `Sale recorded at ${usd(price)}.`)}>
                           Mark sold at {usd(price)}
                         </button>
                         <button className="btn sm" onClick={() => set(o, { status: "declined" }, "Offer cancelled.")}>Cancel</button>
@@ -328,7 +347,7 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
   );
 }
 
-function Inventory({ d, run }: { d: Data; run: Run }) {
+function Inventory({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
   const [edit, setEdit] = useState<Card | "new" | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const rows = [...d.cards].sort((a, b) => Number(b.ask ?? 0) - Number(a.ask ?? 0));
@@ -357,7 +376,7 @@ function Inventory({ d, run }: { d: Data; run: Run }) {
                   <td>
                     <div className="acts">
                       <button className="btn sm" onClick={() => setEdit(c)}>Edit</button>
-                      {c.qty > 0 && <AmountAction placeholder="Sale $" label="Record sale" onGo={(n) => run(() => supabase.rpc("record_sale", { p_card: c.id, p_price: n }), `Sale recorded at ${usd(n)}.`)} />}
+                      {c.qty > 0 && <AmountAction placeholder="Sale $" label="Record sale" onGo={(n) => run(() => supabase.rpc("record_sale", { p_card: c.id, p_price: n, p_location: loc }), `Sale recorded at ${usd(n)}.`)} />}
                       <button
                         className="btn sm danger"
                         onClick={() => {
@@ -474,6 +493,55 @@ function Prices({ d, run, reload }: { d: Data; run: Run; reload: () => Promise<v
   );
 }
 
+function Tax({ d }: { d: Data }) {
+  const groups = new Map<string, { month: string; location: string; rate: number; n: number; gross: number; tax: number }>();
+  d.sales.forEach((s) => {
+    const month = dstr(new Date(s.sold_at)).slice(0, 7);
+    const location = s.location || "No location recorded";
+    const key = `${month}|${location}|${s.tax_rate}`;
+    const g = groups.get(key) ?? { month, location, rate: Number(s.tax_rate ?? 0), n: 0, gross: 0, tax: 0 };
+    g.n += s.qty || 1;
+    g.gross += Number(s.price);
+    g.tax += Number(s.tax ?? 0);
+    groups.set(key, g);
+  });
+  const rows = [...groups.values()].sort((a, b) => b.month.localeCompare(a.month) || a.location.localeCompare(b.location));
+  const gross = rows.reduce((a, r) => a + r.gross, 0);
+  const tax = rows.reduce((a, r) => a + r.tax, 0);
+  return (
+    <>
+      <div className="tiles">
+        <div className="stat"><span className="eyebrow">Collected from buyers</span><b>{usd(gross)}</b><small>tax-included sale prices</small></div>
+        <div className="stat"><span className="eyebrow">Sales tax owed</span><b>{usd(tax)}</b><small>all recorded sales</small></div>
+        <div className="stat"><span className="eyebrow">Sales before tax</span><b>{usd(gross - tax)}</b><small>your taxable receipts</small></div>
+      </div>
+      {rows.length ? (
+        <div className="tablewrap">
+          <table>
+            <thead><tr><th>Month</th><th>Meetup town</th><th className="num">Rate</th><th className="num">Cards</th><th className="num">Collected</th><th className="num">Before tax</th><th className="num">Tax owed</th></tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={`${r.month}${r.location}${r.rate}`}>
+                  <td>{new Date(r.month + "-15T12:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" })}</td>
+                  <td>{r.location}</td>
+                  <td className="num">{r.rate}%</td>
+                  <td className="num">{r.n}</td>
+                  <td className="num">{usd(r.gross)}</td>
+                  <td className="num">{usd(r.gross - r.tax)}</td>
+                  <td className="num">{usd(r.tax)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="empty">No sales recorded yet. Each sale you record is split into price before tax and tax owed, by month and meetup town.</div>
+      )}
+      <p className="note">Prices on the site include sales tax. Tax on each sale is the price minus the price divided by (1 + rate), using the rate saved for the meetup town on the day of the sale. Confirm each town&apos;s rate in the MyTax Illinois Tax Rate Finder and keep it current under Store.</p>
+    </>
+  );
+}
+
 function Usage({ d }: { d: Data }) {
   const days = lastDays(14);
   const by = Object.fromEntries(days.map((x) => [x, 0]));
@@ -529,22 +597,58 @@ function Usage({ d }: { d: Data }) {
   );
 }
 
-function Store() {
+function Store({ locs, run }: { locs: Loc[]; run: Run }) {
   const { site, reloadSite, toast } = useApp();
   const [f, setF] = useState<Site>(site);
+  const [town, setTown] = useState({ name: "", state: "IL", rate: "" });
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const { error } = await supabase.from("site").update({ name: f.name.trim() || "Card Marketplace", tagline: f.tagline.trim(), contact: f.contact.trim() }).eq("id", 1);
+    const { error } = await supabase.from("site").update({ name: f.name.trim() || "Card Marketplace", tagline: f.tagline.trim(), contact: f.contact.trim(), payments: f.payments.trim() || "Cash" }).eq("id", 1);
     toast(error ? `That did not save: ${error.message}` : "Store details saved.");
     reloadSite();
   }
+  async function addTown(e: React.FormEvent) {
+    e.preventDefault();
+    const rate = num(town.rate);
+    if (!town.name.trim() || rate == null) return toast("Enter a town name and its tax rate.");
+    const ok = await run(() => supabase.from("locations").insert({ id: `${slug(town.name)}-${town.state.toLowerCase()}`, name: town.name.trim(), state: town.state, rate }), `${town.name.trim()} added.`);
+    if (ok) setTown({ name: "", state: "IL", rate: "" });
+  }
   return (
-    <form className="panel" onSubmit={save} style={{ maxWidth: 560 }}>
-      <h2>Store details</h2>
-      <label>Store name<input type="text" id="st-name" maxLength={60} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
-      <label>Tagline<input type="text" id="st-tag" maxLength={200} value={f.tagline} onChange={(e) => setF({ ...f, tagline: e.target.value })} /></label>
-      <label>Contact shown in the footer<input type="text" id="st-contact" maxLength={120} placeholder="Email or handle" value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} /></label>
-      <div><button className="btn solid" type="submit">Save store details</button></div>
-    </form>
+    <div className="two">
+      <form className="panel" onSubmit={save}>
+        <h2>Store details</h2>
+        <label>Store name<input type="text" id="st-name" maxLength={60} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
+        <label>Tagline<input type="text" id="st-tag" maxLength={200} value={f.tagline} onChange={(e) => setF({ ...f, tagline: e.target.value })} /></label>
+        <label>Contact shown in the footer<input type="text" id="st-contact" maxLength={120} placeholder="Email or handle" value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} /></label>
+        <label>Payment you accept at the meetup<input type="text" id="st-pay" maxLength={80} placeholder="Cash, Venmo, Zelle" value={f.payments} onChange={(e) => setF({ ...f, payments: e.target.value })} /></label>
+        <div><button className="btn solid" type="submit">Save store details</button></div>
+      </form>
+      <div className="panel">
+        <h2>Meetup towns and tax rates</h2>
+        <p className="note">Buyers pick one of these when they send an offer. The rate is the combined sales tax for that town and is used to split each sale into price and tax. Changing a rate affects future sales only.</p>
+        <div className="tablewrap">
+          <table>
+            <thead><tr><th>Town</th><th className="num">Rate</th><th>Change rate</th><th>Shown to buyers</th></tr></thead>
+            <tbody>
+              {locs.map((l) => (
+                <tr key={l.id}>
+                  <td><b>{l.name}</b>, {l.state}</td>
+                  <td className="num">{l.rate}%</td>
+                  <td><div className="acts"><AmountAction placeholder="Rate %" label="Save" onGo={(n) => run(() => supabase.from("locations").update({ rate: n }).eq("id", l.id), `${l.name} rate set to ${n}%.`)} /></div></td>
+                  <td><button className="btn sm" onClick={() => run(() => supabase.from("locations").update({ active: !l.active }).eq("id", l.id), l.active ? `${l.name} hidden.` : `${l.name} shown.`)}>{l.active ? "Yes, hide" : "No, show"}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <form className="acts" onSubmit={addTown}>
+          <input type="text" id="town-name" placeholder="Town" aria-label="Town name" style={{ width: 140 }} value={town.name} onChange={(e) => setTown({ ...town, name: e.target.value })} />
+          <select id="town-state" aria-label="State" style={{ width: 70 }} value={town.state} onChange={(e) => setTown({ ...town, state: e.target.value })}><option>IL</option><option>IA</option></select>
+          <input type="number" id="town-rate" step="0.001" min="0" placeholder="Rate %" aria-label="Tax rate percent" value={town.rate} onChange={(e) => setTown({ ...town, rate: e.target.value })} />
+          <button className="btn sm solid" type="submit">Add town</button>
+        </form>
+      </div>
+    </div>
   );
 }

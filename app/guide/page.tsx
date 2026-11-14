@@ -18,10 +18,19 @@ export default function Guide() {
       <h2>How offers work</h2>
       <ul>
         <li>You need to sign in to send an offer. Sending one costs nothing and no payment is taken on this site.</li>
+        <li>Every price on this site, including the price in an accepted offer, already includes sales tax. The agreed price is the full amount you pay.</li>
         <li>The seller can accept, decline, or reply with a counter price. You can accept or decline a counter, and withdraw a pending offer at any time.</li>
-        <li>An accepted offer is an agreement to complete the sale at that price. The seller contacts you by email to arrange payment and shipping.</li>
-        <li>If payment is not arranged within 3 days of acceptance, either side may cancel.</li>
+        <li>An accepted offer is an agreement to complete the sale at that price. The seller emails you to set a time and place.</li>
+        <li>If a meetup is not arranged within 3 days of acceptance, either side may cancel.</li>
         <li>Cards are sold first come, first served. An offer does not reserve a card until it is accepted.</li>
+      </ul>
+
+      <h2>Pickup and payment</h2>
+      <ul>
+        <li>Sales are local pickup only, in the Illinois Quad Cities area. You choose a preferred town when you send an offer. We do not ship.</li>
+        <li>Meetups happen in a public place. Payment is made in person at the handoff, by cash or another method the seller confirms beforehand.</li>
+        <li>Look the card over before you pay. Once you have inspected it, paid, and taken it, the sale is final.</li>
+        <li>You get a receipt showing the price and the sales tax included in it.</li>
       </ul>
 
       <h2>Market prices</h2>
