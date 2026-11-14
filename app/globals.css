@@ -154,3 +154,19 @@ main.wrap{min-height:60vh}
 .login{max-width:420px;margin:56px auto;display:grid;gap:16px}
 #toast{display:block}
 nav{gap:6px}
+
+/* marketplace features */
+.more{border-top:1px solid var(--hair);padding:10px 0 14px}
+.more summary{cursor:pointer;font-size:13px;font-weight:600}
+.more .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
+.photos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.photos.one{grid-template-columns:1fr}
+.seg{display:inline-flex;border:1px solid var(--ink)}
+.seg button{border:0;border-right:1px solid var(--ink);background:var(--paper);padding:3px 9px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.list{display:grid;gap:1px;background:var(--ink);border:1px solid var(--ink)}
+.list .li{background:var(--paper);padding:12px 14px;display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+textarea.csv{font-family:var(--mono);font-size:12px;min-height:120px}
+.filters{grid-template-columns:1fr 180px 180px}
+.modal{place-items:start center}

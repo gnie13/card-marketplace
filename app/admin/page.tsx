@@ -3,14 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "@/lib/app";
 import { supabase } from "@/lib/supabase";
-import type { Card, Ev, Hist, Loc, Offer, Sale, Site } from "@/lib/types";
-import { OPEN, agreed, deltaInfo, dstr, fmtDay, lastDays, num, slug, usd } from "@/lib/util";
+import type { BuyItem, Card, Ev, Hist, Lead, Loc, Offer, Sale, Site, Slot } from "@/lib/types";
+import { notify } from "@/lib/notify";
+import { BuylistAdmin, BulkImport, MeetupsAdmin } from "@/components/admin-extra";
+import { GAMES, OPEN, agreed, deltaInfo, dstr, fmtDay, fmtSlot, lastDays, num, slug, usd } from "@/lib/util";
 import { Pill } from "@/components/ui";
 import { BarChart, LineChart, Spark } from "@/components/charts";
 
-type Data = { cards: Card[]; costs: Record<string, number>; hist: Hist[]; offers: Offer[]; sales: Sale[]; events: Ev[]; locs: Loc[] };
+type Data = { cards: Card[]; costs: Record<string, number>; hist: Hist[]; offers: Offer[]; sales: Sale[]; events: Ev[]; locs: Loc[]; buylist: BuyItem[]; leads: Lead[]; slots: Slot[] };
 type Run = (work: () => PromiseLike<{ error: { message: string } | null }>, done: string) => Promise<boolean>;
-const TABS = [["overview", "Overview"], ["offers", "Offers"], ["inventory", "Inventory"], ["prices", "Price trends"], ["tax", "Sales tax"], ["usage", "Usage"], ["store", "Store"]] as const;
+const TABS = [["overview", "Overview"], ["offers", "Offers"], ["inventory", "Inventory"], ["meetups", "Meetups"], ["buylist", "Buylist"], ["prices", "Price trends"], ["tax", "Sales tax"], ["usage", "Usage"], ["store", "Store"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 export default function Admin() {
@@ -21,7 +23,7 @@ export default function Admin() {
 
   const load = useCallback(async () => {
     const since = lastDays(30)[0];
-    const [cards, costs, hist, offers, sales, events, locs] = await Promise.all([
+    const [cards, costs, hist, offers, sales, events, locs, buylist, leads, slots] = await Promise.all([
       supabase.from("cards").select("*"),
       supabase.from("card_costs").select("*"),
       supabase.from("price_history").select("*").order("day"),
@@ -29,6 +31,9 @@ export default function Admin() {
       supabase.from("sales").select("*").order("sold_at"),
       supabase.from("events").select("type,anon_id,card_id,day").gte("day", since).limit(20000),
       supabase.from("locations").select("*").order("name"),
+      supabase.from("buylist").select("*").order("created_at", { ascending: false }),
+      supabase.from("sell_leads").select("*, profiles(name,email)").order("created_at", { ascending: false }),
+      supabase.from("slots").select("*").order("starts_at"),
     ]);
     setData({
       cards: (cards.data as Card[]) ?? [],
@@ -38,6 +43,9 @@ export default function Admin() {
       sales: (sales.data as Sale[]) ?? [],
       events: (events.data as Ev[]) ?? [],
       locs: ((locs.data as Loc[]) ?? []).map((l) => ({ ...l, rate: Number(l.rate) })),
+      buylist: (buylist.data as BuyItem[]) ?? [],
+      leads: (leads.data as Lead[]) ?? [],
+      slots: (slots.data as Slot[]) ?? [],
     });
   }, []);
 
@@ -91,6 +99,10 @@ export default function Admin() {
         <>{locPicker}<Offers d={data} run={run} loc={loc} /></>
       ) : tab === "inventory" ? (
         <>{locPicker}<Inventory d={data} run={run} loc={loc} /></>
+      ) : tab === "meetups" ? (
+        <MeetupsAdmin slots={data.slots} locs={data.locs} offers={data.offers} run={run} />
+      ) : tab === "buylist" ? (
+        <BuylistAdmin items={data.buylist} leads={data.leads} run={run} />
       ) : tab === "prices" ? (
         <Prices d={data} run={run} reload={load} />
       ) : tab === "tax" ? (
@@ -192,8 +204,12 @@ function Overview({ d, go }: { d: Data; go: (t: Tab) => void }) {
 
 function Offers({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
   if (!d.offers.length) return <div className="empty">No offers yet. When a buyer sends one, you can accept, counter, or decline it here.</div>;
-  const set = (o: Offer, patch: Partial<Offer>, done: string) =>
-    run(() => supabase.from("offers").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", o.id), done);
+  const set = async (o: Offer, patch: Partial<Offer>, done: string) => {
+    if (await run(() => supabase.from("offers").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", o.id), done)) notify({ type: "offer", id: o.id });
+  };
+  const sell = async (o: Offer, price: number | null) => {
+    if (await run(() => supabase.rpc("record_offer_sale", { p_offer: o.id, p_location: loc }), `Sale recorded at ${usd(price)}.`)) notify({ type: "offer", id: o.id });
+  };
   const pc = (a: number, b: number | null | undefined) => (b ? `${(((a - b) / b) * 100).toFixed(0)}%` : "n/a");
   return (
     <div className="tablewrap">
@@ -204,15 +220,20 @@ function Offers({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
         <tbody>
           {d.offers.map((o) => {
             const c = d.cards.find((x) => x.id === o.card_id);
+            const bundle = o.items?.length > 0;
+            const inStock = bundle ? o.items.every((i) => (d.cards.find((x) => x.id === i.id)?.qty ?? 0) > 0) : Boolean(c && c.qty > 0);
+            const slot = d.slots.find((x) => x.offer_id === o.id);
             const price = agreed(o);
             const meet = d.locs.find((l) => l.id === o.meetup);
             return (
               <tr key={o.id}>
-                <td><b>{o.card_name}</b><div className="sub">{o.card_label}{meet ? ` · wants ${meet.name}` : ""}{o.note ? ` · "${o.note}"` : ""}</div></td>
+                <td><b>{o.card_name}</b><div className="sub">{o.card_label}{meet ? ` · wants ${meet.name}` : ""}{o.note ? ` · "${o.note}"` : ""}</div>
+                  {o.trade_note && <div className="sub">Trade offered: {o.trade_note}{o.trade_value != null ? ` (they value it at ${usd(o.trade_value)})` : ""}</div>}
+                  {slot && <div className="sub">Meetup booked: {fmtSlot(slot.starts_at)}</div>}</td>
                 <td><b>{o.profiles?.name || "Buyer"}</b>{o.profiles?.email && <div className="sub">{o.profiles.email}</div>}</td>
                 <td className="num">{usd(o.amount)}</td>
-                <td className="num">{pc(o.amount, c?.ask ?? o.ask_at_offer)}</td>
-                <td className="num">{pc(o.amount, c?.market ?? o.market_at_offer)}</td>
+                <td className="num">{pc(o.amount, bundle ? o.ask_at_offer : c?.ask ?? o.ask_at_offer)}</td>
+                <td className="num">{pc(o.amount, bundle ? o.market_at_offer : c?.market ?? o.market_at_offer)}</td>
                 <td>{fmtDay(o.created_at)}</td>
                 <td><Pill status={o.status} /></td>
                 <td>
@@ -232,7 +253,7 @@ function Offers({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
                     )}
                     {(o.status === "accepted" || o.status === "counter_accepted") && (
                       <>
-                        <button className="btn sm solid" disabled={!c || c.qty < 1} onClick={() => run(() => supabase.rpc("record_sale", { p_card: o.card_id, p_price: price, p_offer: o.id, p_location: loc }), `Sale recorded at ${usd(price)}.`)}>
+                        <button className="btn sm solid" disabled={!inStock} onClick={() => sell(o, price)}>
                           Mark sold at {usd(price)}
                         </button>
                         <button className="btn sm" onClick={() => set(o, { status: "declined" }, "Offer cancelled.")}>Cancel</button>
@@ -250,17 +271,18 @@ function Offers({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
   );
 }
 
-type Form = Record<"name" | "number" | "set_name" | "set_code" | "rarity" | "condition" | "grade" | "qty" | "ask" | "market" | "cost" | "group" | "product", string> & { listed: boolean };
+type Form = Record<"name" | "number" | "set_name" | "set_code" | "rarity" | "condition" | "grade" | "grader" | "cert_no" | "game" | "kind" | "qty" | "ask" | "market" | "cost" | "group" | "product", string> & { listed: boolean };
 
 function Editor({ card, cost, run, close }: { card: Card | null; cost: number | undefined; run: Run; close: () => void }) {
   const { toast } = useApp();
   const s = (v: unknown) => (v == null ? "" : String(v));
   const [f, setF] = useState<Form>({
     name: s(card?.name), number: s(card?.number), set_name: s(card?.set_name), set_code: s(card?.set_code), rarity: s(card?.rarity),
-    condition: card?.condition || "NM", grade: card?.grade || "Raw", qty: s(card?.qty ?? 1), ask: s(card?.ask), market: s(card?.market),
+    condition: card?.condition || "NM", grade: card?.grade || "Raw", grader: s(card?.grader), cert_no: s(card?.cert_no), game: card?.game || "pokemon", kind: card?.kind || "single", qty: s(card?.qty ?? 1), ask: s(card?.ask), market: s(card?.market),
     cost: s(cost), group: s(card?.tcg_group_id), product: s(card?.tcg_product_id), listed: card?.listed ?? true,
   });
   const [file, setFile] = useState<File | null>(null);
+  const [backFile, setBackFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const field = (k: keyof Omit<Form, "listed">, label: string, cls = "", props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <label className={cls}>
@@ -275,20 +297,27 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
     const id = card?.id ?? `${slug(`${f.name}-${f.number}`)}-${Math.random().toString(36).slice(2, 6)}`;
     const market = num(f.market);
     const today = dstr();
+    const upload = async (fl: File, side: string) => {
+      const path = `${id}-${side}-${Date.now()}.${(fl.name.split(".").pop() || "jpg").toLowerCase()}`;
+      const up = await supabase.storage.from("cards").upload(path, fl);
+      if (up.error) throw new Error(up.error.message);
+      return supabase.storage.from("cards").getPublicUrl(path).data.publicUrl;
+    };
     let image_url = card?.image_url ?? null;
-    if (file) {
-      const path = `${id}-${Date.now()}.${(file.name.split(".").pop() || "jpg").toLowerCase()}`;
-      const up = await supabase.storage.from("cards").upload(path, file);
-      if (up.error) {
-        setBusy(false);
-        return toast(`The photo did not upload: ${up.error.message}`);
-      }
-      image_url = supabase.storage.from("cards").getPublicUrl(path).data.publicUrl;
+    let image_back_url = card?.image_back_url ?? null;
+    try {
+      if (file) image_url = await upload(file, "front");
+      if (backFile) image_back_url = await upload(backFile, "back");
+    } catch (err) {
+      setBusy(false);
+      return toast(`The photo did not upload: ${(err as Error).message}`);
     }
+    const qty = Math.max(0, parseInt(f.qty) || 0);
+    const ask = num(f.ask);
     const row = {
       id, name: f.name.trim(), number: f.number.trim(), set_name: f.set_name.trim(), set_code: f.set_code.trim().toUpperCase(), rarity: f.rarity.trim(),
-      condition: f.condition, grade: f.grade.trim() || "Raw", qty: Math.max(0, parseInt(f.qty) || 0), ask: num(f.ask), market,
-      tcg_group_id: num(f.group), tcg_product_id: num(f.product), listed: f.listed, image_url, sample: false,
+      condition: f.condition, grade: f.grade.trim() || "Raw", grader: f.grader.trim(), cert_no: f.cert_no.trim(), game: f.game, kind: f.kind, qty, ask, market,
+      tcg_group_id: num(f.group), tcg_product_id: num(f.product), listed: f.listed, image_url, image_back_url, sample: false,
       ...(market != null && market !== Number(card?.market) ? { price_updated: today } : {}),
     };
     const ok = await run(async () => {
@@ -302,6 +331,10 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
       return c == null ? supabase.from("card_costs").delete().eq("card_id", id) : supabase.from("card_costs").upsert({ card_id: id, cost: c });
     }, card ? "Card updated." : "Card added to the shop.");
     setBusy(false);
+    if (ok && card) {
+      if (card.qty < 1 && qty > 0) notify({ type: "card", id, kind: "restock" });
+      else if (ask != null && card.ask != null && ask < Number(card.ask)) notify({ type: "card", id, kind: "price" });
+    }
     if (ok) close();
   }
 
@@ -321,7 +354,22 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
               {["NM", "LP", "MP", "HP", "DMG"].map((x) => <option key={x}>{x}</option>)}
             </select>
           </label>
-          {field("grade", "Grade", "", { placeholder: "Raw, PSA 10", maxLength: 16 })}
+          {field("grade", "Grade", "", { placeholder: "Raw, or 10", maxLength: 16 })}
+          {field("grader", "Grading company", "", { placeholder: "PSA, CGC, BGS", maxLength: 12 })}
+          {field("cert_no", "Cert number", "", { maxLength: 24 })}
+          <label>
+            Game
+            <select id="e-game" value={f.game} onChange={(e) => setF({ ...f, game: e.target.value })}>
+              {GAMES.map((g) => <option key={g[0]} value={g[0]}>{g[1]}</option>)}
+            </select>
+          </label>
+          <label>
+            Type
+            <select id="e-kind" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>
+              <option value="single">Single card</option>
+              <option value="sealed">Sealed product</option>
+            </select>
+          </label>
           {field("qty", "Quantity", "", { type: "number", min: 0, step: 1 })}
           {field("ask", "Asking price", "", { type: "number", min: 0, step: 0.01, required: true })}
           {field("market", "Market price", "", { type: "number", min: 0, step: 0.01 })}
@@ -329,8 +377,12 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
           {field("product", "TCGplayer product ID", "", { type: "number", placeholder: "517045" })}
           {field("group", "TCGplayer set (group) ID", "", { type: "number", placeholder: "23237" })}
           <label className="w3">
-            Photo of your card{card?.image_url ? " (replaces the current photo)" : ""}
+            Front photo{card?.image_url ? " (replaces the current one)" : ""}
             <input type="file" id="e-img" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </label>
+          <label className="w3">
+            Back photo{card?.image_back_url ? " (replaces the current one)" : ""}
+            <input type="file" id="e-img-back" accept="image/*" onChange={(e) => setBackFile(e.target.files?.[0] ?? null)} />
           </label>
           <label className="check w3">
             <input type="checkbox" id="e-listed" checked={f.listed} onChange={(e) => setF({ ...f, listed: e.target.checked })} />
@@ -397,6 +449,7 @@ function Inventory({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
       ) : (
         <div className="empty">No cards yet. Add your first card to open the shop.</div>
       )}
+      <BulkImport cards={d.cards} run={run} />
       {edit && <Editor card={edit === "new" ? null : edit} cost={edit === "new" ? undefined : d.costs[edit.id]} run={run} close={() => setEdit(null)} />}
     </>
   );

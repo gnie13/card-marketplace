@@ -13,6 +13,9 @@ type Ctx = {
   toast: (m: string) => void;
   reloadSite: () => void;
   track: (type: "visit" | "view", cardId?: string) => void;
+  bundle: string[];
+  toggleBundle: (id: string) => void;
+  clearBundle: () => void;
 };
 
 const DEFAULT_SITE: Site = {
@@ -50,6 +53,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [site, setSite] = useState<Site>(DEFAULT_SITE);
   const [msg, setMsg] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [bundle, setBundle] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("cm-bundle") || "[]");
+      if (Array.isArray(saved)) setBundle(saved.filter((x) => typeof x === "string").slice(0, 20));
+    } catch {}
+  }, []);
+  const saveBundle = useCallback((next: string[]) => {
+    setBundle(next);
+    try {
+      localStorage.setItem("cm-bundle", JSON.stringify(next));
+    } catch {}
+  }, []);
+  const toggleBundle = useCallback(
+    (id: string) => saveBundle(bundle.includes(id) ? bundle.filter((x) => x !== id) : [...bundle, id].slice(0, 20)),
+    [bundle, saveBundle],
+  );
+  const clearBundle = useCallback(() => saveBundle([]), [saveBundle]);
 
   const toast = useCallback((m: string) => {
     setMsg(m);
@@ -109,7 +131,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [ready, track]);
 
   return (
-    <AppCtx.Provider value={{ user, isAdmin, ready, site, toast, reloadSite, track }}>
+    <AppCtx.Provider value={{ user, isAdmin, ready, site, toast, reloadSite, track, bundle, toggleBundle, clearBundle }}>
       {children}
       {msg && (
         <div id="toast" role="status">

@@ -23,11 +23,14 @@ export default function Guide() {
         <li>An accepted offer is an agreement to complete the sale at that price. The seller emails you to set a time and place.</li>
         <li>If a meetup is not arranged within 3 days of acceptance, either side may cancel.</li>
         <li>Cards are sold first come, first served. An offer does not reserve a card until it is accepted.</li>
+        <li>To offer on several cards at once, add them to a bundle and send one total. The seller answers the bundle as a whole.</li>
+        <li>You can include cards in trade. Your cash offer is what you pay on top, and the seller inspects trade cards at the meetup before agreeing to their value.</li>
       </ul>
 
       <h2>Pickup and payment</h2>
       <ul>
         <li>Sales are local pickup only, in the Illinois Quad Cities area. You choose a preferred town when you send an offer. We do not ship.</li>
+        <li>Once your offer is accepted, book one of the open meetup times under My offers. If none fit, the seller emails you to arrange one.</li>
         <li>Meetups happen in a public place. Payment is made in person at the handoff, by cash or another method the seller confirms beforehand.</li>
         <li>Look the card over before you pay. Once you have inspected it, paid, and taken it, the sale is final.</li>
         <li>You get a receipt showing the price and the sales tax included in it.</li>

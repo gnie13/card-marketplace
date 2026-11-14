@@ -57,3 +57,53 @@ export const agreed = (o: Offer) =>
 
 export const slug = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+
+export const fmtSlot = (iso: string) =>
+  new Date(iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+/** Link to the grading company's certificate lookup, where one exists. */
+export function certUrl(grader: string, cert: string) {
+  const g = grader.trim().toUpperCase();
+  const n = encodeURIComponent(cert.trim());
+  if (!n) return null;
+  if (g === "PSA") return `https://www.psacard.com/cert/${n}`;
+  if (g === "CGC") return `https://www.cgccards.com/certlookup/${n}/`;
+  return null;
+}
+
+export const GAMES: [string, string][] = [
+  ["pokemon", "Pokemon"],
+  ["magic", "Magic: The Gathering"],
+  ["onepiece", "One Piece"],
+  ["yugioh", "Yu-Gi-Oh!"],
+  ["lorcana", "Lorcana"],
+  ["sports", "Sports cards"],
+  ["other", "Other"],
+];
+export const gameName = (g: string) => GAMES.find((x) => x[0] === g)?.[1] ?? g;
+
+/** Small CSV reader: handles quoted fields, doubled quotes, and commas inside quotes. */
+export function parseCsv(text: string): Record<string, string>[] {
+  const rows: string[][] = [];
+  let row: string[] = [], cell = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); cell = "";
+      if (row.some((c) => c.trim())) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some((c) => c.trim())) rows.push(row);
+  if (rows.length < 2) return [];
+  const head = rows[0].map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
+  return rows.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, (r[i] ?? "").trim()])));
+}

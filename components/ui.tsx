@@ -8,7 +8,7 @@ import type { Card, OfferStatus } from "@/lib/types";
 import { STATE } from "@/lib/util";
 
 export function Header() {
-  const { user, isAdmin, ready, site } = useApp();
+  const { user, isAdmin, ready, site, bundle } = useApp();
   const path = usePathname();
   const cur = (p: string) => (p === "/" ? path === "/" || path.startsWith("/card") : path.startsWith(p)) ? "page" : undefined;
   const name = (user?.user_metadata?.full_name as string | undefined) || user?.email || "";
@@ -18,6 +18,9 @@ export function Header() {
         <Link className="brand" href="/">{site.name}</Link>
         <nav>
           <Link href="/" aria-current={cur("/")}>Shop</Link>
+          <Link href="/buylist" aria-current={cur("/buylist")}>We buy</Link>
+          {bundle.length > 0 && <Link href="/bundle" aria-current={cur("/bundle")}>Bundle ({bundle.length})</Link>}
+          {user && <Link href="/saved" aria-current={cur("/saved")}>Saved</Link>}
           {user && <Link href="/offers" aria-current={cur("/offers")}>My offers</Link>}
           {isAdmin && <Link href="/admin" aria-current={cur("/admin")}>Admin</Link>}
           {ready && !user && <Link href="/login" aria-current={cur("/login")}>Sign in</Link>}
@@ -63,19 +66,20 @@ export function SetupNotice() {
   );
 }
 
-export function Art({ c }: { c: Pick<Card, "name" | "set_code" | "number" | "grade" | "condition" | "image_url"> }) {
-  if (c.image_url)
+export function Art({ c, back }: { c: Pick<Card, "name" | "set_code" | "number" | "grade" | "condition" | "image_url"> & { kind?: string; image_back_url?: string | null }; back?: boolean }) {
+  const src = back ? c.image_back_url : c.image_url;
+  if (src)
     return (
       <div className="art photo">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={c.image_url} alt={`Photo of ${c.name}`} />
+        <img src={src} alt={`${back ? "Back" : "Front"} photo of ${c.name}`} />
       </div>
     );
   return (
     <div className="art" aria-hidden="true">
       <div className="hd"><span>{c.set_code}</span><span>{c.number}</span></div>
       <div className="win"><span>{c.name}</span></div>
-      <div className="ft"><span>{c.grade || "Raw"}</span><span>{c.condition}</span></div>
+      <div className="ft"><span>{c.kind === "sealed" ? "Sealed" : c.grade || "Raw"}</span><span>{c.kind === "sealed" ? "" : c.condition}</span></div>
     </div>
   );
 }
