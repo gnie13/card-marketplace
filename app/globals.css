@@ -213,3 +213,15 @@ textarea.csv{font-family:var(--mono);font-size:12px;min-height:120px}
   footer .links{gap:12px}
 }
 input[type=password]{border:1px solid var(--ink);background:var(--paper);padding:8px 10px;border-radius:0;min-width:0;width:100%}
+@media (max-width:760px){
+  .filters{grid-template-columns:1fr 1fr}
+  .filters .q{grid-column:1/-1}
+  .filters label,.more .mgrid label{min-width:0}
+  .art{padding:7px;border-radius:8px}
+  .art .win{padding:5px}
+  .art .win span{font-size:10px;font-stretch:100%;padding:4px 5px;overflow-wrap:break-word;word-break:normal;hyphens:auto}
+  .art .hd,.art .ft{font-size:9px}
+  .tile .ask{font-size:17px}
+  .offerform{grid-template-columns:1fr}
+  .more .mgrid[style]{grid-template-columns:1fr !important}
+}
