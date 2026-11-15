@@ -656,7 +656,7 @@ function Store({ locs, run }: { locs: Loc[]; run: Run }) {
   const [town, setTown] = useState({ name: "", state: "IL", rate: "" });
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const { error } = await supabase.from("site").update({ name: f.name.trim() || "Card Marketplace", tagline: f.tagline.trim(), contact: f.contact.trim(), payments: f.payments.trim() || "Cash" }).eq("id", 1);
+    const { error } = await supabase.from("site").update({ name: f.name.trim() || "QCCards", tagline: f.tagline.trim(), contact: f.contact.trim(), payments: f.payments.trim() || "Cash" }).eq("id", 1);
     toast(error ? `That did not save: ${error.message}` : "Store details saved.");
     reloadSite();
   }

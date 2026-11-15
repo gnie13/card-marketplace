@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
   const origin = new URL(request.url).origin;
   const { data: site } = await db.from("site").select("name").eq("id", 1).maybeSingle();
-  const shop = site?.name || "Card Marketplace";
+  const shop = site?.name || "QCCards";
   const admins = async () => ((await db.from("profiles").select("email").eq("is_admin", true)).data ?? []).map((p) => p.email as string);
 
   if (body.type === "offer") {

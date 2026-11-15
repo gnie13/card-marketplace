@@ -102,7 +102,7 @@ create index if not exists events_day_idx on events (day);
 
 create table if not exists site (
   id int primary key default 1 check (id = 1),
-  name text not null default 'Card Marketplace',
+  name text not null default 'QCCards',
   tagline text not null default 'Every card we have in hand, priced against the live market. See something you want? Send an offer.',
   contact text not null default '',
   payments text not null default 'Cash'

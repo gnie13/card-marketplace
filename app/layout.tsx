@@ -4,7 +4,7 @@ import { AppProvider } from "@/lib/app";
 import { Footer, Header } from "@/components/ui";
 
 export const metadata: Metadata = {
-  title: "Card Marketplace",
+  title: "QCCards",
   description: "Trading cards in stock, priced against the live market. Sign in to send an offer.",
 };
 

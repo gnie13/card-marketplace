@@ -19,7 +19,7 @@ type Ctx = {
 };
 
 const DEFAULT_SITE: Site = {
-  name: "Card Marketplace",
+  name: "QCCards",
   tagline: "Every card we have in hand, priced against the live market. See something you want? Send an offer.",
   contact: "",
   payments: "Cash",
