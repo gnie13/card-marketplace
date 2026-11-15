@@ -489,7 +489,13 @@ function Prices({ d, run, reload }: { d: Data; run: Run; reload: () => Promise<v
       const { data } = await supabase.auth.getSession();
       const res = await fetch("/api/cron/prices", { headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` } });
       const out = await res.json();
-      toast(res.ok ? `Updated ${out.updated} of ${out.checked} cards from TCGplayer.` : `Refresh failed: ${out.error}`);
+      toast(
+        !res.ok
+          ? `Refresh failed: ${out.error}`
+          : out.checked === 0
+            ? "No cards have both TCGplayer IDs, so there was nothing to refresh."
+            : `Updated ${out.updated} of ${out.checked} cards.${out.problems?.length ? ` First problem: ${out.problems[0]}` : ""}`,
+      );
       await reload();
     } catch {
       toast("Refresh failed. Check your connection and try again.");

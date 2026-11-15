@@ -36,28 +36,36 @@ export async function GET(request: Request) {
 
   let updated = 0;
   const skipped: string[] = [];
+  const problems: string[] = [];
   for (const [group, list] of groups) {
     let prices: TcgPrice[] = [];
     try {
-      const res = await fetch(`https://tcgcsv.com/tcgplayer/3/${group}/prices`, { cache: "no-store" });
-      if (!res.ok) throw new Error(String(res.status));
+      const res = await fetch(`https://tcgcsv.com/tcgplayer/3/${group}/prices`, {
+        cache: "no-store",
+        headers: { "User-Agent": "QCCards price refresh (card-marketplace)", Accept: "application/json" },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       prices = (await res.json()).results ?? [];
-    } catch {
+    } catch (err) {
+      problems.push(`Set ${group}: price source did not answer (${(err as Error).message})`);
       skipped.push(...list.map((c) => c.id));
       continue;
     }
     for (const c of list) {
-      const rows = prices.filter((p) => p.productId === c.tcg_product_id && p.marketPrice != null);
+      const rows = prices.filter((p) => Number(p.productId) === Number(c.tcg_product_id) && p.marketPrice != null);
       const row = rows.find((p) => p.subTypeName === c.tcg_subtype) ?? rows.find((p) => p.subTypeName === "Holofoil") ?? rows[0];
       if (!row || row.marketPrice == null) {
+        if (problems.length < 6) problems.push(`${c.id}: product ${c.tcg_product_id} has no market price in set ${group} (${prices.length} prices listed)`);
         skipped.push(c.id);
         continue;
       }
       const a = await db.from("cards").update({ market: row.marketPrice, low: row.lowPrice, mid: row.midPrice, price_updated: today }).eq("id", c.id);
       const b = await db.from("price_history").upsert({ card_id: c.id, day: today, price: row.marketPrice });
-      if (a.error || b.error) skipped.push(c.id);
-      else updated++;
+      if (a.error || b.error) {
+        if (problems.length < 6) problems.push(`${c.id}: database said "${(a.error ?? b.error)?.message}"`);
+        skipped.push(c.id);
+      } else updated++;
     }
   }
-  return Response.json({ day: today, checked: cards?.length ?? 0, updated, skipped });
+  return Response.json({ day: today, checked: cards?.length ?? 0, updated, skipped, problems });
 }
