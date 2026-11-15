@@ -288,6 +288,15 @@ begin
   if not found then raise exception 'That time is no longer available'; end if;
 end $$;
 
+-- One row per card with its price points, so trend lines load in a single request.
+create or replace function price_series(p_days int default 90) returns table (card_id text, pts jsonb)
+language sql stable set search_path = public as $$
+  select h.card_id, jsonb_agg(jsonb_build_array(h.day, h.price) order by h.day)
+  from price_history h
+  where h.day >= current_date - p_days
+  group by h.card_id
+$$;
+
 -- ---------- row level security ----------
 alter table profiles enable row level security;
 alter table cards enable row level security;
@@ -378,6 +387,7 @@ revoke execute on function offer_withdraw(uuid), offer_reply(uuid, boolean), rec
 grant execute on function offer_withdraw(uuid), offer_reply(uuid, boolean), record_sale(text, numeric, text),
   record_offer_sale(uuid, text), book_slot(uuid, uuid) to authenticated;
 grant execute on function is_admin() to anon, authenticated;
+grant execute on function price_series(int) to anon, authenticated;
 
 -- ---------- card photo storage ----------
 insert into storage.buckets (id, name, public) values ('cards', 'cards', true) on conflict (id) do nothing;

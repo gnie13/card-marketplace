@@ -7,6 +7,8 @@ import { configured, supabase } from "@/lib/supabase";
 import type { Card } from "@/lib/types";
 import { deltaInfo, fmtDay, gameName, num, usd } from "@/lib/util";
 import { Art, SetupNotice } from "@/components/ui";
+import { Spark } from "@/components/charts";
+import { loadSeries, type Series } from "@/lib/series";
 
 const SORTS: [string, string][] = [
   ["price-desc", "Price, high to low"],
@@ -22,6 +24,7 @@ export default function Shop() {
   const [cards, setCards] = useState<Card[] | null>(null);
   const [error, setError] = useState(false);
   const [f, setF] = useState(BLANK);
+  const [series, setSeries] = useState<Series>({});
   const set = (k: keyof typeof BLANK) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
 
   useEffect(() => {
@@ -30,6 +33,7 @@ export default function Shop() {
       if (error) setError(true);
       setCards((data as Card[]) ?? []);
     });
+    loadSeries(30).then((x) => x && setSeries(x));
   }, []);
 
   const all = useMemo(() => cards ?? [], [cards]);
@@ -109,6 +113,8 @@ export default function Shop() {
           {list.map((c) => {
             const d = deltaInfo(c);
             const sold = c.qty < 1;
+            const pts = series[c.id] ?? [];
+            const move = pts.length > 1 && pts[0].v ? ((pts[pts.length - 1].v - pts[0].v) / pts[0].v) * 100 : null;
             return (
               <Link key={c.id} className={`tile${sold ? " sold" : ""}`} href={`/card/${c.id}`}>
                 <Art c={c} />
@@ -125,6 +131,12 @@ export default function Shop() {
                     <span className="meta mono">Mkt {usd(c.market)}</span>
                     {d && !sold && <span className={`delta ${d.cls}`}>{d.txt}</span>}
                   </div>
+                  {move != null && (
+                    <div className="row" style={{ alignItems: "center", marginTop: 6 }}>
+                      <Spark pts={pts} w={72} h={22} />
+                      <span className="delta" style={{ color: `var(--${move >= 0 ? "good" : "bad"})` }}>{move >= 0 ? "▲ +" : "▼ "}{move.toFixed(1)}% in 30d</span>
+                    </div>
+                  )}
                 </div>
               </Link>
             );

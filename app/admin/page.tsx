@@ -5,6 +5,7 @@ import { useApp } from "@/lib/app";
 import { supabase } from "@/lib/supabase";
 import type { BuyItem, Card, Ev, Hist, Lead, Loc, Offer, Sale, Site, Slot } from "@/lib/types";
 import { notify } from "@/lib/notify";
+import { loadSeries } from "@/lib/series";
 import { BuylistAdmin, BulkImport, MeetupsAdmin } from "@/components/admin-extra";
 import { GAMES, OPEN, agreed, deltaInfo, dstr, fmtDay, fmtSlot, lastDays, num, photosOf, shrinkPhoto, slug, usd } from "@/lib/util";
 import { Pill } from "@/components/ui";
@@ -26,7 +27,7 @@ export default function Admin() {
     const [cards, costs, hist, offers, sales, events, locs, buylist, leads, slots] = await Promise.all([
       supabase.from("cards").select("*"),
       supabase.from("card_costs").select("*"),
-      supabase.from("price_history").select("*").order("day"),
+      loadSeries(400).then(async (x) => x ? Object.entries(x).flatMap(([card_id, pts]) => pts.map((p) => ({ card_id, day: p.d, price: p.v }))) : (((await supabase.from("price_history").select("*").order("day")).data as Hist[]) ?? [])),
       supabase.from("offers").select("*, profiles(name,email)").order("created_at", { ascending: false }),
       supabase.from("sales").select("*").order("sold_at"),
       supabase.from("events").select("type,anon_id,card_id,day").gte("day", since).limit(20000),
@@ -38,7 +39,7 @@ export default function Admin() {
     setData({
       cards: (cards.data as Card[]) ?? [],
       costs: Object.fromEntries(((costs.data as { card_id: string; cost: number }[]) ?? []).map((c) => [c.card_id, Number(c.cost)])),
-      hist: (hist.data as Hist[]) ?? [],
+      hist,
       offers: (offers.data as Offer[]) ?? [],
       sales: (sales.data as Sale[]) ?? [],
       events: (events.data as Ev[]) ?? [],

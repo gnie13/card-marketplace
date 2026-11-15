@@ -1,0 +1,29 @@
+name: Backfill price history
+
+# Run by hand from the Actions tab after adding inventory. Loads past market
+# prices for every card that has TCGplayer IDs, so trend lines show real history.
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: How many days back to load
+        default: "90"
+        required: true
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install 7zip
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
+      - name: Load past prices
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DAYS: ${{ inputs.days }}
+        run: node scripts/backfill-prices.mjs "$DAYS"

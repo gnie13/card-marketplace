@@ -65,6 +65,9 @@ Create a free account at resend.com, verify a sending domain, and add `RESEND_AP
 name,number,set_name,set_code,game,kind,rarity,condition,grade,grader,cert_no,qty,ask,market,cost,tcg_group_id,tcg_product_id
 ```
 
+## Loading past prices
+The daily refresh only adds today's price. To fill in history, add two repository secrets under **Settings > Secrets and variables > Actions** (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`), then open **Actions > Backfill price history > Run workflow** and choose how many days to load. It reads the daily TCGCSV archives (available from 2024-02-08) and only adds days that are missing. Run it again after adding new cards.
+
 ## Pricing details
 A card is refreshed only when it has both a TCGplayer set (group) ID and product ID. The product ID is the number in the card's TCGplayer URL. Set IDs are listed at `https://tcgcsv.com/tcgplayer/3/groups`. Cards without IDs keep whatever price you log by hand in **Admin > Price trends**. The same page has a **Refresh prices now** button.
 
