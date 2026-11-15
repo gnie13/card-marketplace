@@ -10,6 +10,7 @@ import type { Card, Hist, Loc, Offer } from "@/lib/types";
 import { certUrl, deltaInfo, dstr, fmtDay, gameName, num, photosOf, usd } from "@/lib/util";
 import { Art, Pill } from "@/components/ui";
 import { LineChart } from "@/components/charts";
+import { Card3D } from "@/components/card3d";
 
 const RANGES: [string, number][] = [["30D", 30], ["90D", 90], ["1Y", 365], ["All", 0]];
 
@@ -22,7 +23,7 @@ export default function CardPage() {
   const [mine, setMine] = useState<Offer[]>([]);
   const [saved, setSaved] = useState(false);
   const [range, setRange] = useState(0);
-  const [shot, setShot] = useState(0);
+  const [view, setView] = useState<"3d" | number>("3d");
   const [f, setF] = useState({ amount: "", note: "", meetup: "", trade: "", tradeValue: "" });
   const [busy, setBusy] = useState(false);
   const uid = user?.id;
@@ -70,7 +71,11 @@ export default function CardPage() {
   const cert = certUrl(card.grader, card.cert_no);
   const inBundle = bundle.includes(card.id);
   const photos = photosOf(card);
-  const current = photos[Math.min(shot, photos.length - 1)];
+  // A front and a back photo are enough to build the 3D view. Sealed boxes stay as flat photos.
+  const can3d = card.kind !== "sealed" && photos.length >= 2;
+  const show3d = can3d && view === "3d";
+  const idx = typeof view === "number" ? Math.min(view, photos.length - 1) : 0;
+  const current = photos[idx];
   const cut = new Date();
   cut.setDate(cut.getDate() - range);
   const shown = (range ? hist.filter((h) => h.day >= dstr(cut)) : hist).map((h) => ({ d: h.day, v: Number(h.price) }));
@@ -121,21 +126,32 @@ export default function CardPage() {
         <div className="artcol">
           {photos.length ? (
             <div className="gallery">
-              <a href={current} target="_blank" rel="noopener noreferrer" title="Open the full-size photo">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="shot" src={current} alt={`Photo ${Math.min(shot, photos.length - 1) + 1} of ${photos.length} of ${card.name}`} />
-              </a>
+              {show3d ? (
+                <Card3D front={photos[0]} back={photos[1]} name={card.name} slab={graded} onError={() => setView(0)} />
+              ) : (
+                <a href={current} target="_blank" rel="noopener noreferrer" title="Open the full-size photo">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img className="shot" src={current} alt={`Photo ${idx + 1} of ${photos.length} of ${card.name}`} />
+                </a>
+              )}
               {photos.length > 1 && (
                 <div className="thumbs">
+                  {can3d && (
+                    <button className="t3d" aria-pressed={show3d} aria-label="Show the 3D view" onClick={() => setView("3d")}>3D</button>
+                  )}
                   {photos.map((src, i) => (
-                    <button key={src} aria-pressed={i === shot} aria-label={`Show photo ${i + 1}`} onClick={() => setShot(i)}>
+                    <button key={src} aria-pressed={!show3d && i === idx} aria-label={`Show photo ${i + 1}`} onClick={() => setView(i)}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={src} alt="" />
                     </button>
                   ))}
                 </div>
               )}
-              <p className="note">{photos.length} photo{photos.length === 1 ? "" : "s"} of the actual card for sale. Tap the photo to see it full size.</p>
+              <p className="note">
+                {show3d
+                  ? "Drag the card to turn it, or tap it to flip it over. It is built from photos of the actual card for sale."
+                  : `${photos.length} photo${photos.length === 1 ? "" : "s"} of the actual card for sale. Tap the photo to see it full size.`}
+              </p>
             </div>
           ) : (
             <>

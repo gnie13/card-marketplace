@@ -11,7 +11,7 @@ A storefront for trading cards (Pokemon first) where signed-in buyers send offer
 | Path | What it does |
 | --- | --- |
 | `/` | Shop: search, set, game, type, condition, graded, rarity and price filters, sorting |
-| `/card/[id]` | Front and back photos, graded cert link, market panel with 30D, 90D, 1Y ranges, offer form with trade-in, save, add to bundle |
+| `/card/[id]` | 3D view you can spin (built from the front and back photos), photo gallery, graded cert link, market panel with 30D, 90D, 1Y ranges, offer form with trade-in, save, add to bundle |
 | `/bundle` | One offer covering several cards |
 | `/saved` | Saved cards. Buyers are emailed on restock or price drop |
 | `/buylist` | Cards the shop wants to buy and what it pays. Signed-in visitors can say "I have this" |
@@ -57,6 +57,9 @@ Reload the site and the Admin link appears.
 
 ### 6. Email alerts (optional)
 Create a free account at resend.com, verify a sending domain, and add `RESEND_API_KEY` and `EMAIL_FROM` in Vercel. Until then the site runs normally and simply sends no email. Alerts cover: new offers and buyer replies (to you), accept, counter, decline and sold (to the buyer), restock and price drop (to buyers who saved the card), and buylist replies (to you).
+
+## Card photos and the 3D view
+In **Admin > Inventory > Edit**, upload a **Front scan** and a **Back scan**, plus any extra photos. The first photo is the front and the second is the back. With both in place, the card page shows a 3D card that buyers can drag to turn and tap to flip. It is plain CSS 3D transforms in `components/card3d.tsx`, with no 3D library. Graded cards are drawn as a thicker slab, and sealed products stay as flat photos. Crop scans tight to the card's edges, because the viewer shows the whole image as the card face.
 
 ## Importing inventory
 **Admin > Inventory > Import many cards** takes CSV text or a file with these columns. Only `name` and `ask` are required.

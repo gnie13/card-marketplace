@@ -120,7 +120,10 @@ export async function shrinkPhoto(file: File, max = 1600): Promise<Blob> {
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bmp.width * scale);
     canvas.height = Math.round(bmp.height * scale);
-    canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff"; // transparent corners would otherwise turn black in a JPEG
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.85));
     return blob ?? file;
   } catch {

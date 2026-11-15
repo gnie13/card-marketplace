@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/lib/app";
 import { supabase } from "@/lib/supabase";
 import type { BuyItem, Card, Ev, Hist, Lead, Loc, Offer, Sale, Site, Slot } from "@/lib/types";
@@ -272,6 +272,8 @@ function Offers({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
   );
 }
 
+type Shot = { key: string; url: string; file?: File };
+
 type Form = Record<"name" | "number" | "set_name" | "set_code" | "rarity" | "condition" | "grade" | "grader" | "cert_no" | "game" | "kind" | "qty" | "ask" | "market" | "cost" | "group" | "product", string> & { listed: boolean };
 
 function Editor({ card, cost, run, close }: { card: Card | null; cost: number | undefined; run: Run; close: () => void }) {
@@ -282,8 +284,31 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
     condition: card?.condition || "NM", grade: card?.grade || "Raw", grader: s(card?.grader), cert_no: s(card?.cert_no), game: card?.game || "pokemon", kind: card?.kind || "single", qty: s(card?.qty ?? 1), ask: s(card?.ask), market: s(card?.market),
     cost: s(cost), group: s(card?.tcg_group_id), product: s(card?.tcg_product_id), listed: card?.listed ?? true,
   });
-  const [photos, setPhotos] = useState<string[]>(card ? photosOf(card) : []);
-  const [files, setFiles] = useState<File[]>([]);
+  // Saved photos and newly picked files in one ordered list: first is the front, second is the back.
+  const [shots, setShots] = useState<Shot[]>(() => (card ? photosOf(card) : []).map((url) => ({ key: url, url })));
+  const made = useRef<string[]>([]);
+  useEffect(() => {
+    const previews = made.current;
+    return () => previews.forEach((u) => URL.revokeObjectURL(u));
+  }, []);
+  const pick = (slot: "front" | "back" | "more", e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = [...(e.target.files ?? [])].map((file): Shot => {
+      const url = URL.createObjectURL(file);
+      made.current.push(url);
+      return { key: url, url, file };
+    });
+    e.target.value = "";
+    if (!picked.length) return;
+    setShots((cur) =>
+      slot === "front" ? [picked[0], ...cur.slice(1)] : slot === "back" ? (cur.length ? [cur[0], picked[0], ...cur.slice(2)] : cur) : [...cur, ...picked],
+    );
+  };
+  const makeFront = (s: Shot) => setShots((cur) => [s, ...cur.filter((x) => x.key !== s.key)]);
+  const makeBack = (s: Shot) =>
+    setShots((cur) => {
+      const rest = cur.filter((x) => x.key !== s.key);
+      return rest.length ? [rest[0], s, ...rest.slice(1)] : cur;
+    });
   const [busy, setBusy] = useState(false);
   const field = (k: keyof Omit<Form, "listed">, label: string, cls = "", props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <label className={cls}>
@@ -298,11 +323,15 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
     const id = card?.id ?? `${slug(`${f.name}-${f.number}`)}-${Math.random().toString(36).slice(2, 6)}`;
     const market = num(f.market);
     const today = dstr();
-    const all = [...photos];
+    const all: string[] = [];
     try {
-      for (const [i, fl] of files.entries()) {
+      for (const [i, shot] of shots.entries()) {
+        if (!shot.file) {
+          all.push(shot.url);
+          continue;
+        }
         const path = `${id}/${Date.now()}-${i}.jpg`;
-        const up = await supabase.storage.from("cards").upload(path, await shrinkPhoto(fl), { contentType: "image/jpeg" });
+        const up = await supabase.storage.from("cards").upload(path, await shrinkPhoto(shot.file), { contentType: "image/jpeg" });
         if (up.error) throw new Error(up.error.message);
         all.push(supabase.storage.from("cards").getPublicUrl(path).data.publicUrl);
       }
@@ -374,21 +403,35 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
           {field("cost", "Your cost (private)", "", { type: "number", min: 0, step: 0.01 })}
           {field("product", "TCGplayer product ID", "", { type: "number", placeholder: "517045" })}
           {field("group", "TCGplayer set (group) ID", "", { type: "number", placeholder: "23237" })}
-          <div className="w3" style={{ display: "grid", gap: 8 }}>
-            <label>
-              Add photos (front, back, corners, any flaws)
-              <input type="file" id="e-photos" accept="image/*" multiple onChange={(e) => setFiles([...(e.target.files ?? [])])} />
-            </label>
-            {files.length > 0 && <span className="note">{files.length} new photo{files.length === 1 ? "" : "s"} will upload when you save.</span>}
-            {photos.length > 0 && (
+          <div className="w3" style={{ display: "grid", gap: 10 }}>
+            <div className="slots">
+              <label>
+                Front scan
+                <input type="file" id="e-front" accept="image/*" onChange={(e) => pick("front", e)} />
+              </label>
+              <label>
+                Back scan
+                <input type="file" id="e-back" accept="image/*" disabled={!shots.length} onChange={(e) => pick("back", e)} />
+              </label>
+              <label>
+                More photos (corners, close-ups, flaws)
+                <input type="file" id="e-more" accept="image/*" multiple onChange={(e) => pick("more", e)} />
+              </label>
+            </div>
+            <p className="note">
+              A front and a back turn on the 3D view, where buyers can spin the card. Crop each scan tight to the card&apos;s edges so it looks right as it turns. New photos upload when you save.
+            </p>
+            {shots.length > 0 && (
               <div className="pgrid">
-                {photos.map((src, i) => (
-                  <figure key={src}>
+                {shots.map((shot, i) => (
+                  <figure key={shot.key}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={`Photo ${i + 1}`} />
+                    <img src={shot.url} alt={i === 0 ? "Front" : i === 1 ? "Back" : `Extra photo ${i - 1}`} />
                     <div className="acts">
-                      {i === 0 ? <span className="pill solid">Cover</span> : <button type="button" className="btn sm" onClick={() => setPhotos([src, ...photos.filter((x) => x !== src)])}>Cover</button>}
-                      <button type="button" className="btn sm danger" onClick={() => setPhotos(photos.filter((x) => x !== src))}>Remove</button>
+                      <span className={`pill ${i < 2 ? "solid" : "off"}`}>{i === 0 ? "Front" : i === 1 ? "Back" : "Extra"}{shot.file ? ", new" : ""}</span>
+                      {i !== 0 && <button type="button" className="btn sm" onClick={() => makeFront(shot)}>Make front</button>}
+                      {i !== 1 && shots.length > 1 && <button type="button" className="btn sm" onClick={() => makeBack(shot)}>Make back</button>}
+                      <button type="button" className="btn sm danger" onClick={() => setShots((cur) => cur.filter((x) => x.key !== shot.key))}>Remove</button>
                     </div>
                   </figure>
                 ))}
@@ -429,7 +472,7 @@ function Inventory({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
             <tbody>
               {rows.map((c) => (
                 <tr key={c.id}>
-                  <td><b>{c.name}</b>{c.sample && <> <span className="pill off">Sample</span></>}<div className="sub">{c.set_name} · {c.number} · {photosOf(c).length ? `${photosOf(c).length} photo${photosOf(c).length === 1 ? "" : "s"}` : "no photos"}</div></td>
+                  <td><b>{c.name}</b>{c.sample && <> <span className="pill off">Sample</span></>}<div className="sub">{c.set_name} · {c.number} · {photosOf(c).length ? `${photosOf(c).length} photo${photosOf(c).length === 1 ? "" : "s"}` : "no photos"}{c.kind !== "sealed" && photosOf(c).length >= 2 ? " · 3D view on" : ""}</div></td>
                   <td>{c.condition} {c.grade}</td>
                   <td className="num">{c.qty}</td>
                   <td className="num">{usd(c.ask)}</td>
