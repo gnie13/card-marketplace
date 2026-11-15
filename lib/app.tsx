@@ -76,7 +76,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const toast = useCallback((m: string) => {
     setMsg(m);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setMsg(""), 3800);
+    timer.current = setTimeout(() => setMsg(""), Math.min(20000, 3800 + m.length * 45));
   }, []);
 
   const reloadSite = useCallback(() => {
