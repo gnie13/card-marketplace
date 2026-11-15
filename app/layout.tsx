@@ -10,8 +10,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Applies the saved light or dark choice before the page paints. Light is the default. */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem("cm-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}` }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}

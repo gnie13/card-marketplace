@@ -8,6 +8,7 @@
   --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
   color-scheme:light;
 }
+:root[data-theme="dark"]{--paper:#0b0b0b;--ink:#f3f3f1;--mute:#9b9b98;--hair:#2a2a29;--wash:#161615;--good:#4fc27d;--warn:#e0a04a;--bad:#f07a70;color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}

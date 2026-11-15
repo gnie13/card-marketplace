@@ -2,10 +2,32 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useApp } from "@/lib/app";
 import { configured, supabase } from "@/lib/supabase";
 import type { Card, OfferStatus } from "@/lib/types";
 import { STATE } from "@/lib/util";
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    Promise.resolve().then(() => setDark(document.documentElement.dataset.theme === "dark"));
+  }, []);
+  function flip() {
+    const next = !dark;
+    setDark(next);
+    if (next) document.documentElement.dataset.theme = "dark";
+    else delete document.documentElement.dataset.theme;
+    try {
+      localStorage.setItem("cm-theme", next ? "dark" : "light");
+    } catch {}
+  }
+  return (
+    <button className="btn sm" onClick={flip} aria-pressed={dark} title="Switch between light and dark mode">
+      {dark ? "Light mode" : "Dark mode"}
+    </button>
+  );
+}
 
 export function Header() {
   const { user, isAdmin, ready, site, bundle } = useApp();
@@ -24,6 +46,7 @@ export function Header() {
           {user && <Link href="/offers" aria-current={cur("/offers")}>My offers</Link>}
           {isAdmin && <Link href="/admin" aria-current={cur("/admin")}>Admin</Link>}
           {ready && !user && <Link href="/login" aria-current={cur("/login")}>Sign in</Link>}
+          <ThemeToggle />
           {user && (
             <>
               <span className="who">{name}</span>
