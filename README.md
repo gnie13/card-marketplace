@@ -17,7 +17,7 @@ A storefront for trading cards (Pokemon first) where signed-in buyers send offer
 | `/buylist` | Cards the shop wants to buy and what it pays. Signed-in visitors can say "I have this" |
 | `/offers` | A buyer's offers: withdraw, answer a counter, book a meetup time |
 | `/admin` | Owner only: overview, offers, inventory (with CSV import), meetups, buylist, price trends, sales tax, usage, store |
-| `/login` | Google sign-in |
+| `/login` | Google sign-in, or email and password with confirmation and reset |
 | `/guide`, `/terms`, `/privacy` | Condition guide and offer rules, draft legal pages |
 
 ## Setup
@@ -32,6 +32,9 @@ A storefront for trading cards (Pokemon first) where signed-in buyers send offer
 2. Add this authorized redirect URI: `https://YOUR-PROJECT.supabase.co/auth/v1/callback`.
 3. In Supabase, open **Authentication > Sign In / Providers > Google**, turn it on, and paste the client ID and secret.
 4. In **Authentication > URL Configuration**, set the Site URL to your live address and add `http://localhost:3000/**` and `https://YOUR-SITE/**` as redirect URLs.
+
+### Email and password sign-in
+Supabase Auth stores passwords as salted bcrypt hashes. This app never writes a password to its own tables. Recommended settings in **Authentication > Sign In / Providers > Email**: keep **Confirm email** on, set the minimum password length to 10, require letters and digits, and keep **Secure password change** on. Turn on leaked password protection if your plan includes it. Supabase's built-in mailer allows only a few emails per hour, so connect custom SMTP (Resend works) before real traffic.
 
 ### 3. Run it locally
 ```bash

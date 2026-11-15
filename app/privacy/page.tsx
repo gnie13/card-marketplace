@@ -9,7 +9,7 @@ export default function Privacy() {
 
       <h2>What we collect</h2>
       <ul>
-        <li><b>Account details.</b> When you sign in with Google we receive your name and email address.</li>
+        <li><b>Account details.</b> Your name and email address, from Google or from the account you create here. If you set a password, our sign-in provider keeps only a one-way hash of it. We cannot read it.</li>
         <li><b>Offers.</b> The card, the amount, any note you write, and the status of each offer you send.</li>
         <li><b>Saved cards and buylist replies.</b> Cards you save, and any card you tell us you have for sale.</li>
         <li><b>Usage.</b> A random ID stored in your browser, the days you visit, and which cards you open. This is not linked to advertising.</li>

@@ -14,7 +14,7 @@ export default function Terms() {
       <p>This site lists trading cards we have for sale and lets signed-in visitors send offers. You must be at least 18, or have a parent or guardian&apos;s permission, to send an offer.</p>
 
       <h2>Accounts</h2>
-      <p>You sign in with a Google account. You are responsible for activity under your account. We may suspend accounts used for fraud, spam, or abuse.</p>
+      <p>You sign in with a Google account or an email and password. Keep your password private and do not reuse one from another site. You are responsible for activity under your account. We may suspend accounts used for fraud, spam, or abuse.</p>
 
       <h2>Offers and sales</h2>
       <p>Offers follow the rules on the <Link href="/guide">condition guide and offer rules</Link> page. No payment is collected through this site. A sale is complete only when the seller confirms payment.</p>
