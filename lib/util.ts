@@ -107,3 +107,23 @@ export function parseCsv(text: string): Record<string, string>[] {
   const head = rows[0].map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
   return rows.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, (r[i] ?? "").trim()])));
 }
+
+/** Every photo of a card, cover first. Falls back to the older front and back fields. */
+export const photosOf = (c: { photos?: string[] | null; image_url: string | null; image_back_url?: string | null }) =>
+  c.photos?.length ? c.photos : [c.image_url, c.image_back_url ?? null].filter((x): x is string => Boolean(x));
+
+/** Shrinks a phone photo to at most 1600px on its long side and re-encodes it as JPEG, so uploads stay small. */
+export async function shrinkPhoto(file: File, max = 1600): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+    return blob ?? file;
+  } catch {
+    return file;
+  }
+}

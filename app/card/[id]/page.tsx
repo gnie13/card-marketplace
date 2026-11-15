@@ -7,7 +7,7 @@ import { useApp } from "@/lib/app";
 import { notify } from "@/lib/notify";
 import { supabase } from "@/lib/supabase";
 import type { Card, Hist, Loc, Offer } from "@/lib/types";
-import { certUrl, deltaInfo, dstr, fmtDay, gameName, num, usd } from "@/lib/util";
+import { certUrl, deltaInfo, dstr, fmtDay, gameName, num, photosOf, usd } from "@/lib/util";
 import { Art, Pill } from "@/components/ui";
 import { LineChart } from "@/components/charts";
 
@@ -22,6 +22,7 @@ export default function CardPage() {
   const [mine, setMine] = useState<Offer[]>([]);
   const [saved, setSaved] = useState(false);
   const [range, setRange] = useState(0);
+  const [shot, setShot] = useState(0);
   const [f, setF] = useState({ amount: "", note: "", meetup: "", trade: "", tradeValue: "" });
   const [busy, setBusy] = useState(false);
   const uid = user?.id;
@@ -68,6 +69,8 @@ export default function CardPage() {
   const graded = Boolean(card.grade) && card.grade.toLowerCase() !== "raw";
   const cert = certUrl(card.grader, card.cert_no);
   const inBundle = bundle.includes(card.id);
+  const photos = photosOf(card);
+  const current = photos[Math.min(shot, photos.length - 1)];
   const cut = new Date();
   cut.setDate(cut.getDate() - range);
   const shown = (range ? hist.filter((h) => h.day >= dstr(cut)) : hist).map((h) => ({ d: h.day, v: Number(h.price) }));
@@ -116,11 +119,30 @@ export default function CardPage() {
       <Link className="back" href="/">Back to shop</Link>
       <div className="detail">
         <div className="artcol">
-          <div className={`photos${card.image_back_url ? "" : " one"}`}>
-            <Art c={card} />
-            {card.image_back_url && <Art c={card} back />}
-          </div>
-          {!card.image_url && <p className="note" style={{ marginTop: 8 }}>No photo yet. Ask the seller for front and back photos before you meet.</p>}
+          {photos.length ? (
+            <div className="gallery">
+              <a href={current} target="_blank" rel="noopener noreferrer" title="Open the full-size photo">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="shot" src={current} alt={`Photo ${Math.min(shot, photos.length - 1) + 1} of ${photos.length} of ${card.name}`} />
+              </a>
+              {photos.length > 1 && (
+                <div className="thumbs">
+                  {photos.map((src, i) => (
+                    <button key={src} aria-pressed={i === shot} aria-label={`Show photo ${i + 1}`} onClick={() => setShot(i)}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt="" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="note">{photos.length} photo{photos.length === 1 ? "" : "s"} of the actual card for sale. Tap the photo to see it full size.</p>
+            </div>
+          ) : (
+            <>
+              <Art c={card} />
+              <p className="note" style={{ marginTop: 8 }}>No photos yet. Ask the seller for photos of the actual card before you meet.</p>
+            </>
+          )}
         </div>
         <div className="side">
           <div style={{ display: "grid", gap: 8 }}>

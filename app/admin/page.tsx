@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import type { BuyItem, Card, Ev, Hist, Lead, Loc, Offer, Sale, Site, Slot } from "@/lib/types";
 import { notify } from "@/lib/notify";
 import { BuylistAdmin, BulkImport, MeetupsAdmin } from "@/components/admin-extra";
-import { GAMES, OPEN, agreed, deltaInfo, dstr, fmtDay, fmtSlot, lastDays, num, slug, usd } from "@/lib/util";
+import { GAMES, OPEN, agreed, deltaInfo, dstr, fmtDay, fmtSlot, lastDays, num, photosOf, shrinkPhoto, slug, usd } from "@/lib/util";
 import { Pill } from "@/components/ui";
 import { BarChart, LineChart, Spark } from "@/components/charts";
 
@@ -281,8 +281,8 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
     condition: card?.condition || "NM", grade: card?.grade || "Raw", grader: s(card?.grader), cert_no: s(card?.cert_no), game: card?.game || "pokemon", kind: card?.kind || "single", qty: s(card?.qty ?? 1), ask: s(card?.ask), market: s(card?.market),
     cost: s(cost), group: s(card?.tcg_group_id), product: s(card?.tcg_product_id), listed: card?.listed ?? true,
   });
-  const [file, setFile] = useState<File | null>(null);
-  const [backFile, setBackFile] = useState<File | null>(null);
+  const [photos, setPhotos] = useState<string[]>(card ? photosOf(card) : []);
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const field = (k: keyof Omit<Form, "listed">, label: string, cls = "", props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <label className={cls}>
@@ -297,27 +297,24 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
     const id = card?.id ?? `${slug(`${f.name}-${f.number}`)}-${Math.random().toString(36).slice(2, 6)}`;
     const market = num(f.market);
     const today = dstr();
-    const upload = async (fl: File, side: string) => {
-      const path = `${id}-${side}-${Date.now()}.${(fl.name.split(".").pop() || "jpg").toLowerCase()}`;
-      const up = await supabase.storage.from("cards").upload(path, fl);
-      if (up.error) throw new Error(up.error.message);
-      return supabase.storage.from("cards").getPublicUrl(path).data.publicUrl;
-    };
-    let image_url = card?.image_url ?? null;
-    let image_back_url = card?.image_back_url ?? null;
+    const all = [...photos];
     try {
-      if (file) image_url = await upload(file, "front");
-      if (backFile) image_back_url = await upload(backFile, "back");
+      for (const [i, fl] of files.entries()) {
+        const path = `${id}/${Date.now()}-${i}.jpg`;
+        const up = await supabase.storage.from("cards").upload(path, await shrinkPhoto(fl), { contentType: "image/jpeg" });
+        if (up.error) throw new Error(up.error.message);
+        all.push(supabase.storage.from("cards").getPublicUrl(path).data.publicUrl);
+      }
     } catch (err) {
       setBusy(false);
-      return toast(`The photo did not upload: ${(err as Error).message}`);
+      return toast(`A photo did not upload: ${(err as Error).message}`);
     }
     const qty = Math.max(0, parseInt(f.qty) || 0);
     const ask = num(f.ask);
     const row = {
       id, name: f.name.trim(), number: f.number.trim(), set_name: f.set_name.trim(), set_code: f.set_code.trim().toUpperCase(), rarity: f.rarity.trim(),
       condition: f.condition, grade: f.grade.trim() || "Raw", grader: f.grader.trim(), cert_no: f.cert_no.trim(), game: f.game, kind: f.kind, qty, ask, market,
-      tcg_group_id: num(f.group), tcg_product_id: num(f.product), listed: f.listed, image_url, image_back_url, sample: false,
+      tcg_group_id: num(f.group), tcg_product_id: num(f.product), listed: f.listed, photos: all, image_url: all[0] ?? null, image_back_url: all[1] ?? null, sample: false,
       ...(market != null && market !== Number(card?.market) ? { price_updated: today } : {}),
     };
     const ok = await run(async () => {
@@ -376,14 +373,27 @@ function Editor({ card, cost, run, close }: { card: Card | null; cost: number | 
           {field("cost", "Your cost (private)", "", { type: "number", min: 0, step: 0.01 })}
           {field("product", "TCGplayer product ID", "", { type: "number", placeholder: "517045" })}
           {field("group", "TCGplayer set (group) ID", "", { type: "number", placeholder: "23237" })}
-          <label className="w3">
-            Front photo{card?.image_url ? " (replaces the current one)" : ""}
-            <input type="file" id="e-img" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          </label>
-          <label className="w3">
-            Back photo{card?.image_back_url ? " (replaces the current one)" : ""}
-            <input type="file" id="e-img-back" accept="image/*" onChange={(e) => setBackFile(e.target.files?.[0] ?? null)} />
-          </label>
+          <div className="w3" style={{ display: "grid", gap: 8 }}>
+            <label>
+              Add photos (front, back, corners, any flaws)
+              <input type="file" id="e-photos" accept="image/*" multiple onChange={(e) => setFiles([...(e.target.files ?? [])])} />
+            </label>
+            {files.length > 0 && <span className="note">{files.length} new photo{files.length === 1 ? "" : "s"} will upload when you save.</span>}
+            {photos.length > 0 && (
+              <div className="pgrid">
+                {photos.map((src, i) => (
+                  <figure key={src}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={`Photo ${i + 1}`} />
+                    <div className="acts">
+                      {i === 0 ? <span className="pill solid">Cover</span> : <button type="button" className="btn sm" onClick={() => setPhotos([src, ...photos.filter((x) => x !== src)])}>Cover</button>}
+                      <button type="button" className="btn sm danger" onClick={() => setPhotos(photos.filter((x) => x !== src))}>Remove</button>
+                    </div>
+                  </figure>
+                ))}
+              </div>
+            )}
+          </div>
           <label className="check w3">
             <input type="checkbox" id="e-listed" checked={f.listed} onChange={(e) => setF({ ...f, listed: e.target.checked })} />
             Show this card in the shop
@@ -418,7 +428,7 @@ function Inventory({ d, run, loc }: { d: Data; run: Run; loc: string | null }) {
             <tbody>
               {rows.map((c) => (
                 <tr key={c.id}>
-                  <td><b>{c.name}</b>{c.sample && <> <span className="pill off">Sample</span></>}<div className="sub">{c.set_name} · {c.number}</div></td>
+                  <td><b>{c.name}</b>{c.sample && <> <span className="pill off">Sample</span></>}<div className="sub">{c.set_name} · {c.number} · {photosOf(c).length ? `${photosOf(c).length} photo${photosOf(c).length === 1 ? "" : "s"}` : "no photos"}</div></td>
                   <td>{c.condition} {c.grade}</td>
                   <td className="num">{c.qty}</td>
                   <td className="num">{usd(c.ask)}</td>

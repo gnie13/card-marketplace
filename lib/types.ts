@@ -22,6 +22,7 @@ export type Card = {
   tcg_subtype: string | null;
   image_url: string | null;
   image_back_url: string | null;
+  photos?: string[] | null;
   listed: boolean;
   sample: boolean;
   created_at: string;

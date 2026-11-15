@@ -33,6 +33,7 @@ create table if not exists cards (
   tcg_subtype text,
   image_url text,
   image_back_url text,
+  photos text[] not null default '{}',
   listed boolean not null default true,
   sample boolean not null default false,
   created_at timestamptz not null default now()
