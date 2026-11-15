@@ -177,3 +177,39 @@ textarea.csv{font-family:var(--mono);font-size:12px;min-height:120px}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
 .pgrid figure{margin:0;display:grid;gap:4px}
 .pgrid img{width:100%;aspect-ratio:1;object-fit:cover;border:1px solid var(--ink);display:block}
+
+/* Ruled grids drawn with cell borders, so an unfilled last row leaves no solid block */
+.grid,.tiles,.spec{gap:0;background:none;border:0;border-top:1px solid var(--ink);border-left:1px solid var(--ink)}
+.grid>*,.tiles>*,.spec>*{border-right:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+
+/* Phones */
+@media (max-width:760px){
+  header.top{position:static}
+  .top .wrap{gap:8px;padding-top:10px;padding-bottom:8px}
+  .brand{flex:1 0 100%;margin-right:0}
+  nav{flex-wrap:nowrap;overflow-x:auto;width:100%;gap:4px;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  nav a,nav button{white-space:nowrap;flex:none}
+  nav a{padding:9px 10px}
+  input[type=text],input[type=number],input[type=search],input[type=email],input[type=password],input[type=datetime-local],select,textarea{font-size:16px;padding:10px}
+  .btn{padding:11px 14px}
+  .btn.sm{padding:9px 11px;font-size:13px}
+  .acts input{width:110px;font-size:16px;padding:8px}
+  .detail .artcol{max-width:none}
+  .bigask{font-size:32px}
+  .panel{padding:14px}
+  .section{padding:20px 0 40px}
+  .intro{padding:22px 0 16px}
+  .tabs{width:100%}
+  .tabs button{padding:11px 14px}
+  .modal{padding:0}
+  .modal form{min-height:100%;border:0;padding:16px}
+  .more .mgrid{grid-template-columns:1fr 1fr}
+  .list .li{align-items:flex-start}
+  .login{margin:28px auto}
+  .seg button{padding:8px 11px}
+  .thumbs{grid-template-columns:repeat(5,1fr)}
+  td,th{padding:9px 10px}
+  footer .links{gap:12px}
+}
+input[type=password]{border:1px solid var(--ink);background:var(--paper);padding:8px 10px;border-radius:0;min-width:0;width:100%}
